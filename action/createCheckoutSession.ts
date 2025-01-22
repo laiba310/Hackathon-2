@@ -1,8 +1,25 @@
+import stripe from "@/lib/strip";
+import { BasketItem } from "../store/store";
+import { urlFor } from "@/sanity/lib/image";
+
+export type Metadata = {
+  orderNumber: string;
+  customerName: string;
+  customerEmail: string;
+  clerkUserId: string;
+};
+
+export type GroupedBasketItem = {
+  Product: BasketItem["product"];
+  quantity: number;
+};
+
 export async function createCheckoutSession(
   items: GroupedBasketItem[],
   metadata: Metadata
 ) {
   try {
+    // Check if any grouped items don't have a price
     const itemsWithoutPrice = items.filter((item) => !item.Product.price);
 
     if (itemsWithoutPrice.length > 0) {
@@ -17,23 +34,18 @@ export async function createCheckoutSession(
 
     let customerId: string | undefined;
     if (customer.data.length > 0) {
-      customerId = customer.data[0].id;
+      customerId = customer.data[0].id; // Corrected variable name to fetch customer ID
     }
 
-    // Debug logs
-    console.log("Vercel URL:", process.env.VERCEL_URL);
+    // Debug logs for environment variables
     console.log("Base URL:", process.env.NEXT_PUBLIC_BASE_URL);
-    console.log("Metadata:", metadata);
 
+    // Constructing success URL based on environment
     const successUrl = `${
-      process.env.VERCEL_URL
-        ? `https://${process.env.VERCEL_URL}`
-        : process.env.NEXT_PUBLIC_BASE_URL
+      process.env.NEXT_PUBLIC_BASE_URL || "http://your-custom-domain.com"
     }/success?session_id={CHECKOUT_SESSION_ID}&ordernumber=${metadata.orderNumber}`;
 
-    // Debugging the successUrl
-    console.log("Constructed Success URL:", successUrl);
-
+    // Creating Stripe checkout session
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       customer_creation: customerId ? undefined : "always",
@@ -42,11 +54,11 @@ export async function createCheckoutSession(
       mode: "payment",
       allow_promotion_codes: true,
       success_url: successUrl,
-      cancel_url: `${"https://" + (process.env.VERCEL_URL || process.env.NEXT_PUBLIC_BASE_URL)}/basket`,
+      cancel_url: `${process.env.NEXT_PUBLIC_BASE_URL || "http://your-custom-domain.com"}/basket`,
       line_items: items.map((item) => ({
         price_data: {
-          currency: "PKR", 
-          unit_amount: Math.round(item.Product.price! * 100), 
+          currency: "PKR", // Use PKR for Pakistani Rupees
+          unit_amount: Math.round(item.Product.price! * 100), // Price in cents (multiply by 100 for PKR)
           product_data: {
             name: item.Product.name || "Unnamed Product",
             description: `Product ID: ${item.Product._id}`,
@@ -59,15 +71,17 @@ export async function createCheckoutSession(
         quantity: item.quantity,
       })),
       shipping_address_collection: {
-        allowed_countries: ['PK', 'US'],
+        allowed_countries: ['PK', 'US'], // Allowed countries for address collection
       },
       phone_number_collection: {
-        enabled: true,
+        enabled: true, // Enabling phone number collection
       },
     });
 
+    // Return the session URL for redirection to the Stripe checkout page
     return session.url;
   } catch (error) {
+    // Log the error and throw it for further handling
     console.error("Error creating checkout session:", error);
     throw error;
   }
