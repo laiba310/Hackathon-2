@@ -38,3 +38,5 @@ rm -rf .git
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+.vercel

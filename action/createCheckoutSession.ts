@@ -37,13 +37,18 @@ export async function createCheckoutSession(
       customerId = customer.data[0].id; // Corrected variable name to fetch customer ID
     }
 
+    // Debug logs for environment variables
+    console.log("Vercel URL:", process.env.VERCEL_URL);
+    console.log("Base URL:", process.env.NEXT_PUBLIC_BASE_URL);
+
+    // Constructing success URL based on environment
     const successUrl = `${
       process.env.VERCEL_URL
         ? `https://${process.env.VERCEL_URL}`
         : process.env.NEXT_PUBLIC_BASE_URL
     }/success?session_id={CHECKOUT_SESSION_ID}&ordernumber=${metadata.orderNumber}`;
 
-    // Create Stripe checkout session
+    // Creating Stripe checkout session
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       customer_creation: customerId ? undefined : "always",
